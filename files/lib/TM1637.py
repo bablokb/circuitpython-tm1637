@@ -200,13 +200,13 @@ class TM1637(object):
       segments[1] |= 128
     self.write(segments[:4])
 
-  def scroll(self, string, delay=250):
+  def scroll(self, string, delay=0.25):
     segments = string if isinstance(string, list) else self.encode_string(string)
     data = [0] * 8
     data[4:0] = list(segments)
     for i in range(len(segments) + 5):
       self.write(data[0+i:4+i])
-      sleep_ms(delay)
+      time.sleep(delay)
 
 # ---------------------------------------------------------------------------
 
