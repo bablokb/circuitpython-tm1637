@@ -1,4 +1,4 @@
-import subprocess, time
+import time
 import TM1637
 import board
 
