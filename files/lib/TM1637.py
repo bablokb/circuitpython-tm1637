@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# CircuitPython library for TM1637 quad 7-segment LED displays
+# CircuitPython library for TM1637 quad/hex 7-segment LED displays
 #
 # This core of the code is from a micropython implementation from:
 # https://github.com/mcauser/micropython-tm1637
@@ -232,3 +232,81 @@ class TM1637Decimal(TM1637):
       segments[j] = self.encode_char(string[i])
       j += 1
     return segments
+  
+# ---------------------------------------------------------------------------
+
+class TM1637SixDigit(TM1637):
+  """
+  Library for six digit, 7-segment LED modules based on the TM1637 LED driver.
+  Steve Anderson (https://github.com/IrregularShed), 2023-05-22
+
+  Six digit TM1637 displays have a pair of three digit modules with decimal points, and
+  the logical order of each is reversed (to display '123456' you have to send '321654')
+  """
+
+  def digit_to_logic(self, num):
+    """Convert a digit position to a logical position"""
+    return (num // 3) * 3 + (2 - (num % 3))
+
+  def encode_string(self, string):
+    """Convert a string to LED segments.
+
+    Convert a string containing 0-9, a-z, space, dash, star and '.' to an array of
+    segments, matching the length of the source string."""
+    segments = bytearray(len(string.replace('.', '')) + 3)
+   
+    j = 0
+    for i in range(len(string)):
+      if string[i] == '.' and j > 0:
+        segments[self.digit_to_logic(j - 1)] |= TM1637._MSB
+        continue
+   
+      segments[self.digit_to_logic(j)] = self.encode_char(string[i])
+      j += 1
+    return segments
+
+  def write(self, segments, pos = 0):
+    # override to ensure only 6 segments are passed to prevent things going screwy
+    super().write(segments[:6], pos)
+
+  def hex(self, val):
+    """Display a hex value from 0x000000 to 0xffffff, right aligned."""
+    string = '{:06x}'.format(val & 0xffffff)
+    self.write(self.encode_string(string[:6]))
+
+  def number(self, num):
+    """Display an integer value from -99999 to 999999, right aligned."""
+    num=max(-99999, min(num, 999999))
+    string='{0: >6d}'.format(num)
+    self.write(self.encode_string(string))
+
+  def numbers(self, num1, num2, seperator = True):
+    """Display two integer values of -99 to 999, with leading zeros
+    and optionally separated by a decimal point."""
+    num1 = max(-99, min(num1, 999))
+    num2 = max(-99, min(num2, 999))
+    segments = self.encode_string('{0:0>3d}{1:0>3d}'.format(num1, num2))
+    if seperator:
+      segments[0] |= TM1637._MSB # decimal point on third digit
+    self.write(segments)
+
+  def temperature(self, num):
+    """Basic integer temperature display."""
+    if num < -999:
+      self.show('low') # low
+    elif num > 9999:
+      self.show('high') # high
+    else:
+      string = '{0: >4d}*C'.format(num) # degrees C
+      self.write(self.encode_string(string))
+
+  def show(self, string):
+    # override to avoid four character limit
+    segments = self.encode_string(string)
+    self.write(segments)
+
+  def scroll(self, string, delay = 0.25):
+    # override because the digit mapping prevents the original method
+    for i in range(len(string) + 1):
+      self.show(string[i:])
+      time.sleep(delay)
